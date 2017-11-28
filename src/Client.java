@@ -52,10 +52,10 @@ public class Client implements Runnable, ActionListener {
             oup.flush();
             ObjectInputStream inp = new ObjectInputStream(ips);
 
+            //немного выждем
+            sleep(10);
 
-            while (true) {
-                //немного выждем
-                sleep(10);
+            while (!newGame.clientFinished) {
 
                 //получим карту от сервера и нарисуем её
                 String gsonInpData = (String) inp.readObject();
@@ -64,7 +64,7 @@ public class Client implements Runnable, ActionListener {
                 newGame.setClientData(oData);
 
                 //немного выждем
-                sleep(10);
+                //sleep(10);
 
                 //запихиваем все нужные для обмена данные в экземпляр класса oData
                 //получим полну карту на клиенте и отправим её серверу
@@ -75,7 +75,12 @@ public class Client implements Runnable, ActionListener {
                 oup.writeObject(gsonOutData);
                 oup.flush();
                 oup.reset();
+                sleep(50);
             }
+            //всё завершим
+            oup.flush();
+            oup.reset();
+            socket.close();
         } catch (Exception e) {
             System.out.println("Cannot connect to Server");
         }

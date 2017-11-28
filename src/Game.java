@@ -380,7 +380,7 @@ public class Game extends JPanel implements ActionListener {
             //запомним координаты X и Y текущего сегмента змейки
             segmentX = player.snakeBody.get(i).x;
             segmentY = player.snakeBody.get(i).y;
-            map[segmentX][segmentY] = i == 0 ? playerNum+1 : playerNum;
+            map[segmentX][segmentY] = ( i == 0 ? playerNum+1 : playerNum);
         }
 
         //пробежим всю карту и выведем все ништяки на карте
@@ -416,6 +416,9 @@ public class Game extends JPanel implements ActionListener {
 
     public void endGame(int z) {
         //System.out.println(z);
+
+        if (gameMode == 1) clientFinished = true;
+        if (gameMode == 2) serverFinished = true;
         timer.stop();
 //        musi.clip.close();
 //        musThread.interrupt();
@@ -445,8 +448,6 @@ public class Game extends JPanel implements ActionListener {
     }
 
     public void resetFlags() {
-        clientFinished = false;
-        serverFinished = false;
         delClientSegment = false;
         addClientSegment = false;
     }
@@ -459,9 +460,10 @@ public class Game extends JPanel implements ActionListener {
 
         //клиент съел ништяк - увеличим змейку
         if (inpData.addClientSegment) player.addSegment(player.getHeadX(), player.getHeadY());
-
+        inpData.addClientSegment = false;
         //съел закусь - удалим сегмент
         if (inpData.delClientSegment) player.delLastSegment();
+        inpData.delClientSegment  = false;
 
         repaint();
     }
@@ -497,7 +499,7 @@ public class Game extends JPanel implements ActionListener {
                             break;
                     }
 
-                }
+                } else
                 //это просто тушка p2 - нарисуем его на карте
                 if (clientMap[row][col] == PLAYER2) {
                     map[row][col] = PLAYER2;
@@ -523,6 +525,7 @@ public class Game extends JPanel implements ActionListener {
         int pX = player.getHeadX();
         int pY = player.getHeadY();
 
+        if (pX < 0 || pY < 0 ) return;
 //        System.out.println(" map : " + map[pX][pY]);
 //        System.out.println("head : " + pX + "  "+pY);
 

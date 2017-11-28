@@ -59,8 +59,7 @@ public class Server implements Runnable, ActionListener {
             oup.flush();
             ObjectInputStream inp = new ObjectInputStream(ips);
 
-            while (true) {
-                //sleep(10);
+            while (!newGame.serverFinished) {
 
                 //sleep(10);
                 //запихиваем все нужные для обмена данные в экземпляр класса oData
@@ -80,7 +79,7 @@ public class Server implements Runnable, ActionListener {
                 //данные отправлены - сбросим флаги
                 newGame.resetFlags();
 
-
+//                sleep(50);
 
                 //получим данные от клиента
                 String gsonInpData = (String) inp.readObject();
@@ -90,6 +89,12 @@ public class Server implements Runnable, ActionListener {
                 newGame.setServerData(oData);
 
             }
+
+            //всё завершим
+            oup.flush();
+            oup.reset();
+            socket.close();
+
         } catch (Exception e) {
         }
     }
