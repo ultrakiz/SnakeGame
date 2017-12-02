@@ -68,7 +68,7 @@ public class Client implements Runnable, ActionListener {
 
                 //запихиваем все нужные для обмена данные в экземпляр класса oData
                 //получим полну карту на клиенте и отправим её серверу
-                oData.map               = newGame.getMap();
+                oData.clientKeyCode = newGame.clientKeyCode;
                 //пакуем oData в json
                 String gsonOutData = gson.toJson((ClientServerData) oData);
                 //отправляем серверу

@@ -64,10 +64,10 @@ public class Server implements Runnable, ActionListener {
                 //sleep(10);
                 //запихиваем все нужные для обмена данные в экземпляр класса oData
                 //флаги
-                oData.delClientSegment = newGame.delClientSegment;
-                oData.addClientSegment = newGame.addClientSegment;
+                oData.delClientSegment  = newGame.delClientSegment;
+                oData.addClientSegment  = newGame.addClientSegment;
                 //карта для клиента
-                oData.map              = (int[][]) newGame.getMap();
+                oData.map               = (int[][]) newGame.getMap();
                 //пакуем oData в json
                 String gsonMap = gson.toJson((ClientServerData) oData);
 

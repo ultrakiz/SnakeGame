@@ -36,7 +36,7 @@ public class Game extends JPanel implements ActionListener {
 
     int timeFood;
 
-    static Player player;
+    public static Player player, player2;
 
     int secCounter; //частота появления ништяков (в секундах)
     int frequency; //частота с которой будут встречаться увеличивающие тело ништяки 1..10
@@ -71,7 +71,10 @@ public class Game extends JPanel implements ActionListener {
     int gameMode;
 
     //какой цифрой будет отмечаться игрок на карте
-    int playerNum;
+    int playerNum, playerNum2;
+
+    // клавиша, нажатая на клиенте - передадим её на сервер, чтобы изменять положение второй змейки
+    public int clientKeyCode;
 
     // флаги для сетевой игры
     public boolean clientFinished;  // флаг прекращения игры клиентом
@@ -82,21 +85,33 @@ public class Game extends JPanel implements ActionListener {
    //mode = 0 - сингл плеер, 1 - это сервер, 2 - это клиент
     public Game(JFrame frame, int mode) {
 
-        //инициализируем всё заново
-        if (mode == 0 || mode == 1) {
-            playerNum = PLAYER1;
-            player      = new Player(3,3 );
-        }
-        else {
-            playerNum = PLAYER2;
-            player      = new Player(10, 10);
-        }
-
         map         = new int[fSize][fSize];
         clientMap   = new int[fSize][fSize];
 
-        map[player.getHeadX()][player.getHeadY()] = playerNum;
+        //инициализируем всё заново
+        switch (mode) {
+            case 0: // это сингл плеер
+                playerNum = PLAYER1;
+                player = new Player(3, 3);
+                map[player.getHeadX()][player.getHeadY()] = playerNum;
+                break;
+            case 1: // сервер в мультиплеере
+                playerNum = PLAYER1;
+                player    = new Player(3,3 );
+                map[player.getHeadX()][player.getHeadY()] = playerNum;
 
+                playerNum2 = PLAYER2;
+                player2    = new Player(10, 10);
+                map[player2.getHeadX()][player2.getHeadY()] = playerNum2;
+                break;
+            case 2: // клиент в мультиплеере
+                playerNum = PLAYER2;
+                player2   = new Player(10, 10);
+                map[player2.getHeadX()][player2.getHeadY()] = playerNum2;
+            default:
+        }
+
+        clientKeyCode = 0;
         presSec     = new Date().getSeconds();
         account     = 0;
         level       = 0;
@@ -104,7 +119,6 @@ public class Game extends JPanel implements ActionListener {
         frequency   = 1;
         freqTimer   = 200;
         timer       = new Timer(freqTimer, this); // скорость движения змейкиы
-
 
         myframe     = frame;
         gameMode    = mode;
@@ -124,17 +138,23 @@ public class Game extends JPanel implements ActionListener {
         frame.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                int key = e.getKeyCode();
-                if(key == KeyEvent.VK_ESCAPE) {
-                    //если выбрали - завершить игру
-                    timer.stop();
-                    if ( JOptionPane.showConfirmDialog(null,"Завершить игру ?","Выход из игры",JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
-                        endGame(0);
-                    } else {
-                        timer.start();
-                    }
-                    return;
-                } else player.keyPressed(e);
+                //если клавиша нажата на клиенте - просто запомним её (чтобы потом отправить серверу)
+                if (gameMode == 2) {
+                    clientKeyCode = e.getKeyCode();
+                } else {
+
+                    int key = e.getKeyCode();
+                    if (key == KeyEvent.VK_ESCAPE) {
+                        //если выбрали - завершить игру
+                        timer.stop();
+                        if (JOptionPane.showConfirmDialog(null, "Завершить игру ?", "Выход из игры", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+                            endGame(0);
+                        } else {
+                            timer.start();
+                        }
+                        return;
+                    } else player.keyPressed(e);
+                }
             }
         });
 
@@ -188,29 +208,28 @@ public class Game extends JPanel implements ActionListener {
 
     public void repaintSingle(Graphics g) {
         drawCell(g);
-        //получим коодинаты головы змеи на виртуальной карте
+        //получим коодинаты головы первой змеи на виртуальной карте
         int pX = player.getHeadX();
         int pY = player.getHeadY();
 
-        //если подошли к границам экрана - смерть
-        if ( pX >= fSize ||
-                pY >= fSize ||
-                pX < 0 ||
-                pY < 0) {
-
+        //если подошли к границам экрана - смерть игрока
+        if (endOfField(pX, pY)) {
             endGame(1);
             return;
         }
 
-        //System.out.println("++" + player.length);
-        //нарисуем каждый сегмент змейки
-        for (int i = 0; i< player.length; i++) {
-            //запомним координаты X и Y текущего сегмента змейки
-            segmentX = player.snakeBody.get(i).x;
-            segmentY = player.snakeBody.get(i).y;
-            //голова на карте отмечается как playerNum + 1
-            map[segmentX][segmentY] = i == 0 ? playerNum+1 : playerNum;
+        //если это сервер в мультиплеере
+        if (gameMode == 1) {
+            //получим коодинаты головы второй змеи на виртуальной карте
+            int p2X = player2.getHeadX();
+            int p2Y = player2.getHeadY();
+            if (endOfField(p2X, p2Y)) endGame(2);
         }
+
+        //отметим все сегменты змейки на карте
+        setSnakeOnMap(player, playerNum);
+
+        if (gameMode == 1) setSnakeOnMap(player2, playerNum2);
 
         //пробежим всю карту и выведем все ништяки на карте
         for(int row = 0; row < fSize; row++) {
@@ -275,6 +294,29 @@ public class Game extends JPanel implements ActionListener {
                 }
             }
         }
+    }
+
+    //отметить тело змейки на карте
+    public void setSnakeOnMap(Player pl, int playerNum) {
+        for (int i = 0; i< pl.length; i++) {
+            //запомним координаты X и Y текущего сегмента змейки
+            segmentX = pl.snakeBody.get(i).x;
+            segmentY = pl.snakeBody.get(i).y;
+            //голова на карте отмечается как playerNum + 1
+            map[segmentX][segmentY] = i == 0 ? playerNum+1 : playerNum;
+        }
+    }
+
+    //проверим, не врезались ли в экран
+    public boolean endOfField(int pX, int pY) {
+        if ( pX >= fSize ||
+                pY >= fSize ||
+                pX < 0 ||
+                pY < 0) {
+            return true;
+        }
+
+        return false;
     }
 
     public void repaintServer(Graphics g) {
@@ -361,27 +403,18 @@ public class Game extends JPanel implements ActionListener {
 
     public void repaintClient(Graphics g) {
         drawCell(g);
-        //получим коодинаты головы змеи на виртуальной карте
-        int pX = player.getHeadX();
-        int pY = player.getHeadY();
+//        //получим коодинаты головы змеи на виртуальной карте
+//        int p2X = player2.getHeadX();
+//        int p2Y = player2.getHeadY();
+//
+//        //если подошли к границам экрана - смерть
+//        if ( endOfField(p2X, p2Y)) {
+//            endGame(2);
+//            return;
+//        }
 
-        //если подошли к границам экрана - смерть
-        if ( pX >= fSize ||
-                pY >= fSize ||
-                pX < 0 ||
-                pY < 0) {
-
-            endGame(1);
-            return;
-        }
-
-        //нарисуем каждый сегмент змейки
-        for (int i = 0; i< player.length; i++) {
-            //запомним координаты X и Y текущего сегмента змейки
-            segmentX = player.snakeBody.get(i).x;
-            segmentY = player.snakeBody.get(i).y;
-            map[segmentX][segmentY] = ( i == 0 ? playerNum+1 : playerNum);
-        }
+//        //нарисуем каждый сегмент змейки
+//        setSnakeOnMap(player2, playerNum2);
 
         //пробежим всю карту и выведем все ништяки на карте
         for(int row = 0; row < fSize; row++) {
@@ -408,10 +441,8 @@ public class Game extends JPanel implements ActionListener {
                     default:
                         break;
                 }
-
             }
         }
-
     }
 
     public void endGame(int z) {
@@ -436,6 +467,11 @@ public class Game extends JPanel implements ActionListener {
         player.move();
         player.recountCoords(player.getHeadX(), player.getHeadY());
 
+        if (gameMode >0) {
+            player2.move();
+            player2.recountCoords(player2.getHeadX(), player2.getHeadY());
+
+        }
         refreshMap();
 
         testCrush();
@@ -458,12 +494,12 @@ public class Game extends JPanel implements ActionListener {
         //установим карту
         map = inpData.map;
 
-        //клиент съел ништяк - увеличим змейку
-        if (inpData.addClientSegment) player.addSegment(player.getHeadX(), player.getHeadY());
-        inpData.addClientSegment = false;
-        //съел закусь - удалим сегмент
-        if (inpData.delClientSegment) player.delLastSegment();
-        inpData.delClientSegment  = false;
+//        //клиент съел ништяк - увеличим змейку
+//        if (inpData.addClientSegment) player.addSegment(player.getHeadX(), player.getHeadY());
+//        inpData.addClientSegment = false;
+//        //съел закусь - удалим сегмент
+//        if (inpData.delClientSegment) player.delLastSegment();
+//        inpData.delClientSegment  = false;
 
         repaint();
     }
@@ -471,42 +507,47 @@ public class Game extends JPanel implements ActionListener {
     //обрабатываем данные на сервере, полученные от клиента
     public void setServerData(ClientServerData inpData) {
         clientMap = inpData.map;
+
+        //передаём нажатие на клавижу от второго игрока
+        player2.keyPressed(new KeyEvent(this, 0, 0, 0, inpData.clientKeyCode));
+
+//        repaint();
+
         //пробегаем карту сервера и смотрим где находится змейка второго игрока на карте клиента
         // может быть она съела ништяк ?
-        for(int row = 0; row < fSize; row++) {
-            for(int col = 0; col < fSize; col++) {
-                //проверим, не съел ли p2 чего...
-                if (clientMap[row][col] == PLAYER2 + 1) {
-                    switch(map[row][col]) {
-                        case 1: //бухло
-                            //добавить сегмент p2
-                            addClientSegment = true;
-                            break;
-                        case 2: // закусь
-                            // убрать сегмент p2
-                            delClientSegment = true;
-                            break;
-                        case PLAYER1: // тело p1
-                            // p2 врезался в p1
-                            break;
-                        case PLAYER1+1: // голова p1
-                            // p2 врезался в p1
-                            break;
-                        case PLAYER2: //тело p2
-                            // p2 врезался в себя
-                            break;
-                        default:
-                            break;
-                    }
-
-                } else
-                //это просто тушка p2 - нарисуем его на карте
-                if (clientMap[row][col] == PLAYER2) {
-                    map[row][col] = PLAYER2;
-                }
-            }
-
-        }
+//        for(int row = 0; row < fSize; row++) {
+//            for(int col = 0; col < fSize; col++) {
+//                //проверим, не съел ли p2 чего...
+//                if (clientMap[row][col] == PLAYER2 + 1) {
+//                    switch(map[row][col]) {
+//                        case 1: //бухло
+//                            //добавить сегмент p2
+//                            addClientSegment = true;
+//                            break;
+//                        case 2: // закусь
+//                            // убрать сегмент p2
+//                            delClientSegment = true;
+//                            break;
+//                        case PLAYER1: // тело p1
+//                            // p2 врезался в p1
+//                            break;
+//                        case PLAYER1+1: // голова p1
+//                            // p2 врезался в p1
+//                            break;
+//                        case PLAYER2: //тело p2
+//                            // p2 врезался в себя
+//                            break;
+//                        default:
+//                            break;
+//                    }
+//
+//                } else
+//                //это просто тушка p2 - нарисуем его на карте
+//                if (clientMap[row][col] == PLAYER2) {
+//                    map[row][col] = PLAYER2;
+//                }
+//            }
+//        }
     }
 
     public void refreshMap() {
@@ -525,14 +566,14 @@ public class Game extends JPanel implements ActionListener {
         int pX = player.getHeadX();
         int pY = player.getHeadY();
 
-        if (pX < 0 || pY < 0 ) return;
-//        System.out.println(" map : " + map[pX][pY]);
-//        System.out.println("head : " + pX + "  "+pY);
+        int p2X = player2.getHeadX();
+        int p2Y = player2.getHeadY();
+
+        if (endOfField(player.getHeadX(),player.getHeadY())) return;
+        if (endOfField(player2.getHeadX(),player2.getHeadY())) return;
 
         //змея съела ништяк - добавим сегмент
         if (map[pX][pY] == 1 ) {
-//            System.out.println("" + map[pX][pY]);
-//            System.out.println("" + pX + "  "+pY);
             player.addSegment(pX, pY);
             account +=1;
             accLabel.setText(accText + account);
@@ -546,11 +587,33 @@ public class Game extends JPanel implements ActionListener {
 //            sndThread.start();
         }
 
+        //змея съела ништяк - добавим сегмент
+        if (map[p2X][p2Y] == 1 ) {
+            player2.addSegment(p2X, p2Y);
+//            account +=1;
+//            accLabel.setText(accText + account);
+//            if (account % speedUp == 0 ) {
+//                freqTimer -= timerUp;
+//                timer.setDelay(freqTimer);
+//                level +=1;
+//                levelLabel.setText(levelText + level);
+//            }
+////            Thread sndThread = new Thread(sound);
+////            sndThread.start();
+        }
+
         //змея съела отраву - грохнем один сегмент
         if (map[pX][pY] == 2 ) {
             map[pX][pY] = 0;
             player.delLastSegment();
             if (player.length == 0) endGame(3);
+        }
+
+
+        if (map[p2X][p2Y] == 2 ) {
+            map[p2X][p2Y] = 0;
+            player2.delLastSegment();
+            if (player2.length == 0) endGame(3);
         }
 
         //проверим, не врезалась ли змейка в саму себя
@@ -566,15 +629,8 @@ public class Game extends JPanel implements ActionListener {
 
         map[pX][pY] = playerNum;
 
-        for (int i = 0; i< player.length; i++) {
-            //запомним координаты X и Y текущего сегмента змейки
-            segmentX = player.snakeBody.get(i).x;
-            segmentY = player.snakeBody.get(i).y;
-            map[segmentX][segmentY] = i== 0 ? playerNum+1 : playerNum;
-        }
-
-        //System.out.println(" len : " + player.length);
-        //showMap();
+        setSnakeOnMap(player, playerNum);
+        setSnakeOnMap(player2, playerNum2);
     }
 
     public void showMap() {
